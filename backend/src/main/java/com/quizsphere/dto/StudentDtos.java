@@ -30,7 +30,7 @@ public final class StudentDtos {
             @NotBlank @Size(max = 40) String registerNumber,
             @NotBlank @Size(max = 150) String fullName,
             @Email @Size(max = 255) String email,
-            @NotNull @Min(1) @Max(6) Integer academicYear,
+            @NotNull @Min(1) @Max(4) Integer academicYear,
             @NotBlank @Size(max = 50) String department,
             @Size(max = 20) String section,
             @Size(max = 50) String program,
@@ -42,7 +42,7 @@ public final class StudentDtos {
     public record UpdateStudentRequest(
             @Size(min = 1, max = 150) String fullName,
             @Email @Size(max = 255) String email,
-            @Min(1) @Max(6) Integer academicYear,
+            @Min(1) @Max(4) Integer academicYear,
             @Size(min = 1, max = 50) String department,
             @Size(max = 20) String section,
             @Size(max = 50) String program,

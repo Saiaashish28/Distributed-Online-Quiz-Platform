@@ -107,8 +107,8 @@ export default function RegisterPage() {
                 {(id) => (
                   <Select id={id} value={form.academicYear} onChange={set('academicYear')} required>
                     <option value="">Select</option>
-                    {[1, 2, 3, 4, 5].map((y) => (
-                      <option key={y} value={y}>{['I', 'II', 'III', 'IV', 'V'][y - 1]} year</option>
+                    {[1, 2, 3, 4].map((y) => (
+                      <option key={y} value={y}>{['I', 'II', 'III', 'IV'][y - 1]} year</option>
                     ))}
                   </Select>
                 )}

@@ -24,7 +24,7 @@ public final class AuthDtos {
             @NotBlank @Size(min = 8, max = 72, message = "must be 8-72 characters") String password,
             @Size(max = 100) String inviteCode,
             @Size(max = 40) String registerNumber,
-            @Min(1) @Max(6) Integer academicYear,
+            @Min(1) @Max(4) Integer academicYear,
             @Size(max = 50) String department,
             @Size(max = 20) String section,
             @Size(max = 50) String program,

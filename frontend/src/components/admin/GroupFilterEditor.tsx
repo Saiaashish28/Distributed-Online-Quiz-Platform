@@ -85,7 +85,7 @@ export function GroupFilterEditor({
         <>
           <div>
             <p className="mb-1 text-sm font-medium text-slate-700">Academic year</p>
-            <Chips options={[1, 2, 3, 4, 5]} value={value.academicYears ?? []} onChange={(v) => set({ academicYears: v })} render={(y) => `${roman(y)} year`} />
+            <Chips options={[1, 2, 3, 4]} value={value.academicYears ?? []} onChange={(v) => set({ academicYears: v })} render={(y) => `${roman(y)} year`} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <ValueList label="Department" known={attrs.data?.departments ?? []} value={value.departments ?? []} onChange={(v) => set({ departments: v })} />

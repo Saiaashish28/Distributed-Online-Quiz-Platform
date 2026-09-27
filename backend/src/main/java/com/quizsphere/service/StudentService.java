@@ -284,7 +284,7 @@ public class StudentService {
         String yearRaw = r.get("academicyear");
         Integer year = Text.parseAcademicYear(yearRaw);
         if (yearRaw == null) errors.add("Academic Year is required");
-        else if (year == null) errors.add("Academic Year must be 1-6 or I-VI");
+        else if (year == null) errors.add("Academic Year must be 1-4 or I-IV");
 
         String department = r.get("department");
         if (department == null) errors.add("Department is required");

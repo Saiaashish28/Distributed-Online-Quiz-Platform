@@ -69,7 +69,7 @@ export default function StudentsPage() {
           </div>
           <Select aria-label="Year" className="w-28" value={year} onChange={(e) => (setYear(e.target.value), setPage(0))}>
             <option value="">All years</option>
-            {[1, 2, 3, 4, 5].map((y) => (
+            {[1, 2, 3, 4].map((y) => (
               <option key={y} value={y}>{roman(y)} year</option>
             ))}
           </Select>
@@ -188,7 +188,7 @@ export default function StudentsPage() {
               label="Update students that already exist"
               description="Off by default: existing register numbers are skipped, never silently overwritten. Course enrollments are only added, never removed."
             />
-            <p className="text-xs">Columns: Register Number, Student Name, Email, Academic Year (1-6 or I-VI), Department, Section, Semester, Course Codes (separated by ;), Program, Password. Without a password, the initial password is the register number and must be changed at first login.</p>
+            <p className="text-xs">Columns: Register Number, Student Name, Email, Academic Year (1-4 or I-IV), Department, Section, Semester, Course Codes (separated by ;), Program, Password. Without a password, the initial password is the register number and must be changed at first login.</p>
           </div>
         }
         summarize={(r) => ({ valid: r.toCreate + r.toUpdate, invalid: r.invalid, label: 'students' })}
@@ -338,7 +338,7 @@ function StudentDialog({
           {(id) => (
             <Select id={id} value={form.academicYear ?? ''} onChange={set('academicYear')}>
               <option value="">Select</option>
-              {[1, 2, 3, 4, 5, 6].map((y) => (
+              {[1, 2, 3, 4].map((y) => (
                 <option key={y} value={y}>{roman(y)}</option>
               ))}
             </Select>

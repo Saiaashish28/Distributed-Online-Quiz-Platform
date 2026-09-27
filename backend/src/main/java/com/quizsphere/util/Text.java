@@ -8,7 +8,10 @@ public final class Text {
     public static final Pattern REGISTER_NUMBER = Pattern.compile("^[A-Z0-9][A-Z0-9/_-]{2,39}$");
     public static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 
-    private static final String[] ROMAN = {"", "I", "II", "III", "IV", "V", "VI"};
+    /** Academic years run from I to IV. */
+    public static final int MAX_ACADEMIC_YEAR = 4;
+
+    private static final String[] ROMAN = {"", "I", "II", "III", "IV"};
 
     private Text() {
     }
@@ -36,14 +39,14 @@ public final class Text {
         return ROMAN[year];
     }
 
-    /** Parses "3", "III", "III Year", "3rd" into 1..6; returns null when invalid. */
+    /** Parses "3", "III", "III Year", "3rd" into 1..4; returns null when invalid. */
     public static Integer parseAcademicYear(String s) {
         String t = trimToNull(s);
         if (t == null) return null;
         t = t.toUpperCase(Locale.ROOT).replace("YEAR", "").replaceAll("(ST|ND|RD|TH)$", "").trim();
         try {
             int v = (int) Double.parseDouble(t);
-            return v >= 1 && v <= 6 ? v : null;
+            return v >= 1 && v <= MAX_ACADEMIC_YEAR ? v : null;
         } catch (NumberFormatException ignored) {
             // try roman numerals
         }
