@@ -1,0 +1,76 @@
+spring:
+  application:
+    name: quizsphere
+  datasource:
+    # Accepts a JDBC URL (jdbc:postgresql://...) or a provider URL (postgres://user:pass@host/db),
+    # which DatabaseUrlEnvironmentPostProcessor converts to JDBC form.
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/quizsphere}
+    username: ${DATABASE_USERNAME:quizsphere}
+    password: ${DATABASE_PASSWORD:quizsphere}
+    hikari:
+      maximum-pool-size: ${DATABASE_POOL_SIZE:10}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_batch_fetch_size: 100
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_absent
+
+server:
+  port: ${PORT:8080}
+  error:
+    include-stacktrace: never
+    include-message: never
+  forward-headers-strategy: framework
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:true}
+
+app:
+  jwt:
+    secret: ${JWT_SECRET_KEY:}
+    expiration-minutes: ${JWT_EXPIRATION_MINUTES:720}
+  cors:
+    allowed-origins: ${FRONTEND_ORIGIN:http://localhost:5173}
+  registration:
+    # Admin self-registration requires this invite code. Empty = admin registration disabled.
+    admin-invite-code: ${ADMIN_INVITE_CODE:}
+    student-self-registration: ${STUDENT_SELF_REGISTRATION_ENABLED:true}
+  bootstrap-admin:
+    # Optional: creates this admin on startup if no admin exists yet. Never hardcode real credentials.
+    email: ${BOOTSTRAP_ADMIN_EMAIL:}
+    password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+    name: ${BOOTSTRAP_ADMIN_NAME:Administrator}
+  quiz:
+    # Grace period for answer saves/submissions arriving just after the deadline (network latency).
+    grace-seconds: ${QUIZ_GRACE_SECONDS:5}
+    auto-submit-interval-ms: ${QUIZ_AUTO_SUBMIT_INTERVAL_MS:10000}
+  rate-limit:
+    login-per-minute: ${RATE_LIMIT_LOGIN_PER_MINUTE:10}
+    join-per-minute: ${RATE_LIMIT_JOIN_PER_MINUTE:20}
+
+logging:
+  level:
+    org.hibernate.orm.deprecation: error

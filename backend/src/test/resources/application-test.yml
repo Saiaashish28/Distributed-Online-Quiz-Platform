@@ -1,0 +1,17 @@
+app:
+  jwt:
+    secret: test-secret-for-integration-tests
+  registration:
+    admin-invite-code: test-invite
+    student-self-registration: true
+  quiz:
+    grace-seconds: 2
+    # The scheduler is invoked explicitly in tests.
+    auto-submit-interval-ms: 3600000
+  rate-limit:
+    login-per-minute: 1000
+    join-per-minute: 1000
+
+logging:
+  level:
+    root: warn
