@@ -57,6 +57,7 @@ export default function AssignmentsPage() {
                 <Th>Audience</Th>
                 <Th>Window</Th>
                 <Th>Session</Th>
+                <Th>Monitoring</Th>
                 <Th>Status</Th>
                 <Th>Results</Th>
               </tr>
@@ -81,6 +82,7 @@ export default function AssignmentsPage() {
                     {a.availableFrom ? formatDateTime(a.availableFrom) : 'Now'} → {a.deadline ? formatDateTime(a.deadline) : 'No deadline'}
                   </Td>
                   <Td>{a.liveSession ? <StatusBadge status={a.sessionState} /> : <span className="text-xs text-slate-400">Self-paced</span>}</Td>
+                  <Td>{a.proctoringEnabled ? <Badge tone="indigo">On</Badge> : <span className="text-xs text-slate-400">Off</span>}</Td>
                   <Td>
                     <StatusBadge status={a.status} />
                   </Td>

@@ -9,7 +9,7 @@ import type { ResultView } from '@/types/api'
 
 export default function SubmittedPage() {
   const { id } = useParams()
-  const proctoring = (useLocation().state as { reason?: string } | null)?.reason === 'proctoring'
+  const reason = (useLocation().state as { reason?: string } | null)?.reason
   const { data, error, loading, reload } = useApi<ResultView>(`/api/student/attempts/${id}/result`)
   if (loading && !data) return <LoadingBlock />
   if (error || !data) return <ErrorAlert error={error ?? 'Not found'} onRetry={reload} />
@@ -25,9 +25,11 @@ export default function SubmittedPage() {
         <p className="mt-1 text-sm text-slate-500">Recorded at {formatDateTime(data.submittedAt)}</p>
         {auto && (
           <p className="mt-3 text-sm text-slate-600">
-            {proctoring
+            {reason === 'proctoring'
               ? 'You left the quiz page 3 times, so your quiz was submitted automatically.'
-              : 'Time ran out, the session ended, or the page-leave limit was reached.'}{' '}
+              : reason === 'fullscreen'
+                ? 'You did not return to fullscreen in time, so your quiz was submitted automatically.'
+                : 'Time ran out, the session ended, or a monitoring rule was triggered.'}{' '}
             Every answer you saved has been graded; unanswered questions score zero.
           </p>
         )}

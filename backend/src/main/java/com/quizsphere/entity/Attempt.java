@@ -61,6 +61,10 @@ public class Attempt {
     @Column(name = "proctoring_flagged", nullable = false)
     private boolean proctoringFlagged;
 
+    /** Set while the student is outside required fullscreen; cleared when they return. */
+    @Column(name = "fullscreen_exited_at")
+    private Instant fullscreenExitedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 }

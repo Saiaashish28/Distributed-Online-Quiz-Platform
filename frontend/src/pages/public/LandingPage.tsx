@@ -1,68 +1,85 @@
-import { BarChart3, FileSpreadsheet, Radio, ShieldCheck, UsersRound, Zap } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { Link, Navigate } from 'react-router-dom'
 import { Logo } from '@/components/Logo'
-import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
 
-const FEATURES = [
-  { icon: UsersRound, title: 'Academic & course groups', text: 'Target III-CSE, II-ECE-A or a course cohort. Dynamic groups follow roster changes automatically.' },
-  { icon: Radio, title: 'Live sessions', text: 'Start and end sessions from the console; students join a waiting room and get real-time updates.' },
-  { icon: Zap, title: 'Autosave & recovery', text: 'Every answer is saved to the server. Refresh or reconnect and continue with the same timer.' },
-  { icon: ShieldCheck, title: 'Fair by design', text: 'Server-side timers and scoring. Answer keys never reach the browser before results are released.' },
-  { icon: BarChart3, title: 'Results & review', text: 'Release results when you choose, with optional leaderboards and per-question review.' },
-  { icon: FileSpreadsheet, title: 'Excel marksheets', text: 'Export marksheets and detailed responses mapped to register numbers, including non-submitters.' },
+const FACTS = [
+  {
+    term: 'For faculty',
+    text: 'Import rosters, build class and course groups, author question banks, run live sessions, and export marksheets to Excel.',
+  },
+  {
+    term: 'For students',
+    text: 'Sign in with your register number, take the quizzes assigned to you, and see your results once they are released.',
+  },
+  {
+    term: 'Fair by design',
+    text: 'Timing and scoring happen on the server. Answers save as you go and survive a refresh or a dropped connection.',
+  },
 ]
 
 export default function LandingPage() {
   const { user, loading } = useAuth()
   if (!loading && user) return <Navigate to={user.role === 'ADMIN' ? '/admin' : '/student'} replace />
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-slate-50">
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-        <Logo />
-        <div className="flex gap-2">
-          <Button variant="ghost" asChild>
-            <Link to="/login?role=admin">Faculty sign in</Link>
-          </Button>
-          <Button asChild>
-            <Link to="/login?role=student">Student sign in</Link>
-          </Button>
+    <div className="flex min-h-screen flex-col bg-slate-50">
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
+          <Logo />
+          <Link to="/register" className="text-sm text-slate-600 hover:text-slate-900">
+            Create a student account
+          </Link>
         </div>
       </header>
 
-      <section className="mx-auto max-w-6xl px-4 pb-12 pt-14 text-center sm:px-6 sm:pt-20">
-        <p className="mx-auto mb-4 inline-flex rounded-full bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">
-          Distributed online quiz platform
-        </p>
-        <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
-          Run quizzes for every class, section and course — reliably.
-        </h1>
-        <p className="mx-auto mt-5 max-w-2xl text-lg text-slate-600">
-          QuizSphere lets faculty manage rosters, author question banks, assign quizzes to the right students and export
-          marksheets, while students take quizzes with autosave and live updates.
-        </p>
-        <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Button size="lg" asChild>
-            <Link to="/login?role=student">I'm a student</Link>
-          </Button>
-          <Button size="lg" variant="secondary" asChild>
-            <Link to="/login?role=admin">I'm faculty / admin</Link>
-          </Button>
-        </div>
-      </section>
+      <main className="mx-auto grid w-full max-w-5xl flex-1 gap-12 px-4 py-14 sm:px-6 lg:grid-cols-[1fr_380px] lg:py-20">
+        <section>
+          <h1 className="max-w-xl text-3xl font-semibold leading-tight text-slate-900 sm:text-[40px]">
+            Class quizzes and tests, run from one place.
+          </h1>
+          <p className="mt-4 max-w-lg text-base leading-relaxed text-slate-600">
+            QuizSphere is the department's online assessment system. Faculty assign quizzes to the right students;
+            students take them in the browser on any device.
+          </p>
+          <dl className="mt-10 max-w-xl divide-y divide-slate-200 border-y border-slate-200">
+            {FACTS.map((f) => (
+              <div key={f.term} className="grid gap-1 py-4 sm:grid-cols-[140px_1fr] sm:gap-6">
+                <dt className="text-sm font-medium text-slate-900">{f.term}</dt>
+                <dd className="text-sm leading-relaxed text-slate-600">{f.text}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
 
-      <section className="mx-auto grid max-w-6xl gap-4 px-4 pb-20 sm:grid-cols-2 sm:px-6 lg:grid-cols-3">
-        {FEATURES.map(({ icon: Icon, title, text }) => (
-          <div key={title} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <Icon className="size-6 text-primary-600" aria-hidden />
-            <h2 className="mt-3 font-semibold text-slate-900">{title}</h2>
-            <p className="mt-1 text-sm text-slate-600">{text}</p>
+        <section aria-labelledby="signin" className="order-first h-fit rounded-lg lg:order-none border border-slate-200 bg-white">
+          <h2 id="signin" className="border-b border-slate-200 px-5 py-3.5 text-[15px] font-semibold text-slate-900">
+            Sign in
+          </h2>
+          <div className="divide-y divide-slate-200">
+            <SignInRow to="/login?role=student" title="Student" detail="Use your register number" />
+            <SignInRow to="/login?role=admin" title="Faculty / administrator" detail="Use your institutional email" />
           </div>
-        ))}
-      </section>
-      <footer className="border-t border-slate-200 py-6 text-center text-xs text-slate-500">
-        Browser monitoring records signals for review; it is not proof of misconduct and cannot detect everything.
+          <p className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-[13px] text-slate-500">
+            First time? Your department may already have created your account — the initial password is your register number.
+          </p>
+        </section>
+      </main>
+
+      <footer className="border-t border-slate-200 py-5 text-center text-xs text-slate-500">
+        Browser monitoring, when enabled for a quiz, records page-leave events and is disclosed before you start.
       </footer>
     </div>
+  )
+}
+
+function SignInRow({ to, title, detail }: { to: string; title: string; detail: string }) {
+  return (
+    <Link to={to} className="group flex items-center justify-between px-5 py-4 hover:bg-slate-50">
+      <span>
+        <span className="block text-sm font-medium text-slate-900">{title}</span>
+        <span className="block text-[13px] text-slate-500">{detail}</span>
+      </span>
+      <ArrowRight className="size-4 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-primary-700" />
+    </Link>
   )
 }

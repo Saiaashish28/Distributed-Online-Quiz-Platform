@@ -18,6 +18,9 @@ public interface ProctoringEventRepository extends JpaRepository<ProctoringEvent
 
     long countByAttemptId(Long attemptId);
 
+    @Query("select max(e.occurredAt) from ProctoringEvent e where e.attempt.id = :attemptId and e.eventType = :type")
+    java.time.Instant lastOccurredAt(Long attemptId, com.quizsphere.entity.ProctoringEventType type);
+
     @Query("""
             select count(e) from ProctoringEvent e
              where e.attempt.assignment.owner.id = :ownerId and e.reviewStatus = :status

@@ -26,14 +26,14 @@ export function Dialog({
   return (
     <D.Root open={open} onOpenChange={onOpenChange}>
       <D.Portal>
-        <D.Overlay className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[1px]" />
+        <D.Overlay className="fixed inset-0 z-40 bg-slate-900/35" />
         <D.Content
           className={cn(
-            'animate-fade-in fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl bg-white shadow-xl',
+            'animate-fade-in fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-slate-200 bg-white shadow-[0_24px_48px_-12px_rgb(30_29_26/0.25)]',
             width,
           )}
         >
-          <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+          <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-3.5">
             <div>
               <D.Title className="text-base font-semibold text-slate-900">{title}</D.Title>
               {description ? (
@@ -49,7 +49,7 @@ export function Dialog({
             </D.Close>
           </div>
           <div className="overflow-y-auto px-5 py-4">{children}</div>
-          {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-3">{footer}</div>}
+          {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">{footer}</div>}
         </D.Content>
       </D.Portal>
     </D.Root>

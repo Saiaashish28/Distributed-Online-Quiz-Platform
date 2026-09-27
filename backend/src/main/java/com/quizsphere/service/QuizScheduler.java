@@ -48,6 +48,16 @@ public class QuizScheduler {
                 log.warn("Could not end session {}: {}", id, e.getMessage());
             }
         }
+        Instant fullscreenCutoff = cutoff.minusSeconds(ProctoringService.FULLSCREEN_RETURN_SECONDS);
+        for (Long id : attemptRepository.findFullscreenCountdownExpired(fullscreenCutoff)) {
+            try {
+                if (attemptService.autoFinalizeFullscreen(id)) {
+                    log.info("Attempt {} auto-submitted: student did not return to fullscreen", id);
+                }
+            } catch (RuntimeException e) {
+                log.warn("Could not auto-submit attempt {} (fullscreen): {}", id, e.getMessage());
+            }
+        }
         for (Long id : attemptRepository.findExpiredInProgress(cutoff)) {
             try {
                 if (attemptService.autoFinalize(id)) {

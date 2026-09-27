@@ -90,6 +90,15 @@ export default function AssignmentPage() {
               <p>
                 While you take the quiz, the page records when it loses focus (you switch tabs/windows) and returns
                 {a.proctoring.requireFullscreen && ', and when you leave fullscreen'}. Only the event type and time are stored.
+                {a.proctoring.requireFullscreen && (
+                  <>
+                    {' '}
+                    <strong>
+                      The quiz runs in fullscreen. Each time you leave fullscreen it counts as a warning and you have{' '}
+                      {a.proctoring.fullscreenReturnSeconds} seconds to return, otherwise the quiz is submitted automatically.
+                    </strong>
+                  </>
+                )}
                 No camera, microphone or screen recording is used.{' '}
                 <strong>
                   If you leave the quiz page {a.proctoring.autoSubmitWarnings} times, your quiz is submitted automatically
@@ -141,7 +150,7 @@ export default function AssignmentPage() {
               ) : a.canStart ? (
                 <>
                   {needsConsent && (
-                    <Checkbox checked={consent} onChange={setConsent} label={`I understand that leaving the quiz page is recorded, and that after ${a.proctoring.autoSubmitWarnings} times my quiz is submitted automatically.`} />
+                    <Checkbox checked={consent} onChange={setConsent} label={`I understand that leaving the quiz page is recorded, and that after ${a.proctoring.autoSubmitWarnings} times my quiz is submitted automatically${a.proctoring.requireFullscreen ? ` (leaving fullscreen counts too, and staying out of fullscreen for ${a.proctoring.fullscreenReturnSeconds} seconds also submits it)` : ''}.`} />
                   )}
                   <Button className="w-full" size="lg" onClick={start} loading={starting} disabled={needsConsent && !consent}>
                     {a.attemptsUsed > 0 ? 'Start new attempt' : 'Start quiz'}

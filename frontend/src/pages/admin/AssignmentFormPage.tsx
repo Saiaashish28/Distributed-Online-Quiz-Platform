@@ -37,7 +37,7 @@ export default function AssignmentFormPage() {
   const [liveSession, setLiveSession] = useState(false)
   const [release, setRelease] = useState<ReleaseMode>('MANUAL')
   const [leaderboard, setLeaderboard] = useState(false)
-  const [proctoring, setProctoring] = useState<ProctoringSettings>({ enabled: false, warningThreshold: 3, showWarnings: true, flagForReview: true, requireFullscreen: false })
+  const [proctoring, setProctoring] = useState<ProctoringSettings>({ enabled: true, warningThreshold: 3, showWarnings: true, flagForReview: true, requireFullscreen: true })
   const [openConfirmed, setOpenConfirmed] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)

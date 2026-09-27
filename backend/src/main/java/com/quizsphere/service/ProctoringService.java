@@ -32,6 +32,12 @@ public class ProctoringService {
     /** Warning events (focus lost / fullscreen exit) after which a monitored attempt is submitted automatically. */
     public static final int AUTO_SUBMIT_WARNINGS = 3;
 
+    /** Seconds a student has to return to required fullscreen before the attempt is submitted. */
+    public static final int FULLSCREEN_RETURN_SECONDS = 10;
+
+    /** A focus loss and a fullscreen exit this close together are one action and one warning. */
+    static final int LEAVE_MERGE_SECONDS = 3;
+
     private final AttemptRepository attemptRepository;
     private final ProctoringEventRepository eventRepository;
     private final UserRepository userRepository;
@@ -62,16 +68,33 @@ public class ProctoringService {
         if (!a.isProctoringEnabled()) {
             throw ApiException.badRequest("Monitoring is not enabled for this quiz");
         }
-        Instant now = Instant.now();
+        Instant now = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
         boolean running = at.getStatus() == AttemptStatus.IN_PROGRESS && now.isBefore(at.getEndsAt().plus(grace));
         if (!running) {
             throw ApiException.conflict("This attempt is no longer in progress");
         }
         int threshold = a.getProctoringWarningThreshold();
-        if (eventRepository.countByAttemptId(attemptId) >= MAX_EVENTS_PER_ATTEMPT) {
-            return response(a, at, false, false);
+        // An expired return-to-fullscreen countdown wins over whatever this event says.
+        if (attemptService.enforceFullscreen(at, now)) {
+            return response(a, at, false, "FULLSCREEN");
         }
-        boolean warning = req.eventType().isWarning();
+        if (eventRepository.countByAttemptId(attemptId) >= MAX_EVENTS_PER_ATTEMPT) {
+            return response(a, at, false, null);
+        }
+        Map<String, Object> metadata = sanitize(req.metadata());
+        // A page that loads outside fullscreen (e.g. after a reload) starts or continues the
+        // countdown but is not counted as a page-leave warning.
+        boolean onLoad = metadata != null && "page_load".equals(metadata.get("reason"));
+        if (a.isProctoringRequireFullscreen()) {
+            if (req.eventType() == ProctoringEventType.FULLSCREEN_EXIT && at.getFullscreenExitedAt() == null) {
+                at.setFullscreenExitedAt(now); // a reload during a countdown keeps the original start
+            } else if (req.eventType() == ProctoringEventType.FULLSCREEN_ENTER) {
+                at.setFullscreenExitedAt(null);
+            }
+        }
+        // Every fullscreen exit and every page-leave is a warning. One action counts once: switching
+        // tabs while in fullscreen fires both events, so the second within a few seconds is merged.
+        boolean warning = req.eventType().isWarning() && !onLoad && !mergedWithRecentLeave(at, req.eventType(), now);
         boolean autoSubmit = false;
         if (warning) {
             at.setProctoringWarningCount(at.getProctoringWarningCount() + 1);
@@ -88,7 +111,7 @@ public class ProctoringService {
         e.setEventType(req.eventType());
         e.setOccurredAt(now);
         e.setClientOccurredAt(req.clientTimestamp());
-        e.setMetadata(sanitize(req.metadata()));
+        e.setMetadata(metadata);
         e.setWarningCount(at.getProctoringWarningCount());
         eventRepository.save(e);
         attemptRepository.saveAndFlush(at);
@@ -111,25 +134,48 @@ public class ProctoringService {
         payload.put("flagged", at.isProctoringFlagged());
         payload.put("autoSubmitted", autoSubmit);
         hub.toAdmins(a.getId(), "proctoring_event_recorded", payload);
-        return response(a, at, warning, autoSubmit);
+        return response(a, at, warning, autoSubmit ? "PROCTORING" : null, req.eventType());
     }
 
-    private ProctoringEventResponse response(Assignment a, Attempt at, boolean warning, boolean autoSubmitted) {
+    private boolean mergedWithRecentLeave(Attempt at, ProctoringEventType type, Instant now) {
+        if (!type.isWarning()) return false;
+        ProctoringEventType other = type == ProctoringEventType.FOCUS_LOST
+                ? ProctoringEventType.FULLSCREEN_EXIT : ProctoringEventType.FOCUS_LOST;
+        Instant last = eventRepository.lastOccurredAt(at.getId(), other);
+        return last != null && !last.isBefore(now.minusSeconds(LEAVE_MERGE_SECONDS));
+    }
+
+    /** @param autoSubmitReason "PROCTORING" or "FULLSCREEN" when this request ended the attempt, else null */
+    private ProctoringEventResponse response(Assignment a, Attempt at, boolean warning, String autoSubmitReason) {
+        return response(a, at, warning, autoSubmitReason, null);
+    }
+
+    private ProctoringEventResponse response(Assignment a, Attempt at, boolean warning, String autoSubmitReason,
+                                             ProctoringEventType type) {
         int count = at.getProctoringWarningCount();
         int threshold = a.getProctoringWarningThreshold();
+        boolean autoSubmitted = autoSubmitReason != null;
         // The auto-submit notice is always shown, even when routine warnings are hidden.
         boolean show = autoSubmitted || (warning && a.isProctoringShowWarnings());
         String message;
-        if (autoSubmitted) {
+        if ("FULLSCREEN".equals(autoSubmitReason)) {
+            message = "You did not return to fullscreen within " + FULLSCREEN_RETURN_SECONDS
+                    + " seconds, so your quiz was submitted automatically. Your saved answers have been graded.";
+        } else if (autoSubmitted) {
             message = "You left the quiz page " + AUTO_SUBMIT_WARNINGS + " times, so your quiz was submitted automatically. "
                     + "Your saved answers have been graded.";
+        } else if (show && type == ProctoringEventType.FULLSCREEN_EXIT && a.isProctoringRequireFullscreen()) {
+            message = "Leaving fullscreen was recorded (" + count + " of " + AUTO_SUBMIT_WARNINGS + "). Return within "
+                    + FULLSCREEN_RETURN_SECONDS + " seconds; at " + AUTO_SUBMIT_WARNINGS + " your quiz is submitted automatically.";
         } else if (show) {
             message = "Leaving the quiz page was recorded (" + count + " of " + AUTO_SUBMIT_WARNINGS + "). "
                     + "At " + AUTO_SUBMIT_WARNINGS + " your quiz is submitted automatically.";
         } else {
             message = null;
         }
-        return new ProctoringEventResponse(count, threshold, show, at.isProctoringFlagged(), autoSubmitted, message);
+        Instant deadline = at.getStatus() == AttemptStatus.IN_PROGRESS ? AttemptService.fullscreenDeadline(at) : null;
+        return new ProctoringEventResponse(count, threshold, show, at.isProctoringFlagged(), autoSubmitted,
+                autoSubmitReason, deadline, message);
     }
 
     /** Keeps only a few small, non-identifying fields. */
@@ -142,6 +188,7 @@ public class ProctoringService {
         if (vis instanceof String v) out.put("visibilityState", Text.truncate(v, 20));
         Object fs = in.get("fullscreenSupported");
         if (fs instanceof Boolean b) out.put("fullscreenSupported", b);
+        if ("page_load".equals(in.get("reason"))) out.put("reason", "page_load");
         return out.isEmpty() ? null : out;
     }
 

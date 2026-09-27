@@ -138,6 +138,7 @@ export default function AssignmentDetailPage() {
         title={
           <span className="flex flex-wrap items-center gap-2">
             {s.name} <StatusBadge status={s.status} /> {s.liveSession && <StatusBadge status={s.sessionState} />}
+            {data.proctoring.enabled ? <Badge tone="indigo">Monitoring on</Badge> : <Badge>Monitoring off</Badge>}
           </span>
         }
         description={
@@ -299,8 +300,8 @@ function MonitorTab({
             {done} / {counts.eligible}
           </span>
         </div>
-        <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${counts.eligible ? (done / counts.eligible) * 100 : 0}%` }} />
+        <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
+          <div className="h-full bg-primary-600 transition-all" style={{ width: `${counts.eligible ? (done / counts.eligible) * 100 : 0}%` }} />
         </div>
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
@@ -323,20 +324,26 @@ function MonitorTab({
         </Card>
         <Card>
           <CardHeader title="Session & schedule" />
-          <CardBody className="space-y-2 text-sm text-slate-600">
-            <p>Opens: {s.availableFrom ? formatDateTime(s.availableFrom) : 'Immediately'}</p>
-            <p>Deadline: {s.deadline ? formatDateTime(s.deadline) : 'None'}</p>
-            {s.liveSession && (
-              <>
-                <p>Session started: {formatDateTime(data.sessionStartedAt)}</p>
-                <p>Session ends: {formatDateTime(data.sessionEndsAt)}</p>
-                {data.sessionEndedAt && <p>Session ended: {formatDateTime(data.sessionEndedAt)}</p>}
-              </>
-            )}
-            <p>
-              Results: {s.resultsVisible ? 'visible to students' : 'hidden'} ({s.resultsReleaseMode.replace('_', ' ').toLowerCase()})
-            </p>
-          </CardBody>
+          <dl className="divide-y divide-slate-100 text-sm">
+            {[
+              ['Opens', s.availableFrom ? formatDateTime(s.availableFrom) : 'Immediately'],
+              ['Deadline', s.deadline ? formatDateTime(s.deadline) : 'None'],
+              ...(s.liveSession
+                ? [
+                    ['Session started', formatDateTime(data.sessionStartedAt)],
+                    ['Session ends', formatDateTime(data.sessionEndsAt)],
+                    ...(data.sessionEndedAt ? [['Session ended', formatDateTime(data.sessionEndedAt)]] : []),
+                  ]
+                : []),
+              ['Results', `${s.resultsVisible ? 'Visible to students' : 'Hidden'} (${s.resultsReleaseMode.replace('_', ' ').toLowerCase()})`],
+              ['Monitoring', data.proctoring.enabled ? 'On, auto-submit after 3 page-leaves' : 'Off'],
+            ].map(([k, v]) => (
+              <div key={k} className="flex justify-between gap-4 px-5 py-2.5">
+                <dt className="text-slate-500">{k}</dt>
+                <dd className="text-right text-slate-800">{v}</dd>
+              </div>
+            ))}
+          </dl>
         </Card>
       </div>
       {data.proctoring.enabled && (
@@ -511,7 +518,11 @@ function ProctoringTab({ assignmentId, enabled }: { assignmentId: number; enable
         Focus and fullscreen events show that the quiz page lost focus — they can't tell why (notifications, accidental clicks, accessibility tools). Browsers can't detect every
         application switch. Review in context. By policy an attempt is submitted automatically after 3 such events: its saved answers are graded and nothing is deducted.
       </Alert>
-      {!enabled && <Alert tone="warning">Browser monitoring is disabled for this assignment.</Alert>}
+      {!enabled && (
+        <Alert tone="warning" title="Browser monitoring is off for this assignment">
+          No page-leave events are recorded and nobody is auto-submitted. Turn it on under the Settings tab; it applies to attempts started afterwards.
+        </Alert>
+      )}
       {data.attempts.length === 0 ? (
         <Card>
           <EmptyState icon={<ShieldAlert />} title="No monitoring events recorded" />

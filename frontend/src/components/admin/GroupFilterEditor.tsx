@@ -27,7 +27,7 @@ function Chips<T extends string | number>({
             aria-pressed={on}
             onClick={() => onChange(on ? value.filter((v) => v !== o) : [...value, o])}
             className={cn(
-              'rounded-full border px-2.5 py-1 text-xs font-medium cursor-pointer',
+              'rounded-md border px-2.5 py-1 text-xs font-medium cursor-pointer',
               on ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50',
             )}
           >

@@ -129,6 +129,8 @@ With browser monitoring enabled, the quiz page records focus loss/return and (op
 
 **Auto-submit policy:** on the **3rd** focus-loss or fullscreen-exit event, the attempt is submitted automatically (status `AUTO_SUBMITTED`). This applies to every assignment with monitoring enabled. Returning to the page never counts. Only the answers already saved are graded — nothing is deducted. Students are told about the rule before they start, must tick a consent box, and see "n of 3" warnings during the quiz.
 
+**Fullscreen countdown:** with *Require fullscreen* on (the default when monitoring is enabled), the quiz runs in fullscreen. Each time a student leaves it, that counts as **one of the 3 warnings** and a 10-second countdown covers the quiz with a *Return to fullscreen* button. Returning in time cancels the countdown (the warning stays); letting it run out submits the attempt automatically with its saved answers, and the 3rd warning submits it immediately. The server stores the exit time and enforces the deadline itself, so disabling scripts or reloading the page doesn't help (a reload continues the same countdown). A background job submits within seconds even if the browser goes silent. Switching tabs while in fullscreen fires both a page-leave and a fullscreen exit; events that close together count as one warning. Browsers without the Fullscreen API (e.g. iPhone Safari) are not affected.
+
 Review attempts under **Monitoring review**: per-student timelines, mark events reviewed or follow-up required, add notes. **These are signals, not proof** — a notification or an accidental click can also move focus, so review before drawing conclusions.
 
 ### 6. Results and Excel export

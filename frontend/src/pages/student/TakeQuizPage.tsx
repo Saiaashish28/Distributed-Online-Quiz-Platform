@@ -51,7 +51,12 @@ export default function TakeQuizPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
   const [warningCount, setWarningCount] = useState(0)
-  const [needFullscreen, setNeedFullscreen] = useState(false)
+  /** Client-clock time by which the student must be back in fullscreen; null = no countdown. */
+  const [fsDeadline, setFsDeadline] = useState<number | null>(null)
+  const offsetRef = useRef(0)
+  useEffect(() => {
+    offsetRef.current = offset
+  }, [offset])
 
   const seqRef = useRef(0)
   const pendingRef = useRef(new Map<number, Selection>())
@@ -61,7 +66,7 @@ export default function TakeQuizPage() {
   const finishedRef = useRef(false)
 
   const goSubmitted = useCallback(
-    (reason?: 'proctoring') => {
+    (reason?: 'proctoring' | 'fullscreen') => {
       finishedRef.current = true
       clearTimeout(flushTimer.current)
       if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined)
@@ -81,7 +86,10 @@ export default function TakeQuizPage() {
           goSubmitted()
           return
         }
-        setOffset(new Date(v.serverTime).getTime() - Date.now())
+        const off = new Date(v.serverTime).getTime() - Date.now()
+        setOffset(off)
+        offsetRef.current = off
+        if (v.fullscreenDeadline) setFsDeadline(new Date(v.fullscreenDeadline).getTime() - off)
         const map: Record<number, Selection> = {}
         let maxSeq = 0
         for (const a of v.answers) {
@@ -103,7 +111,6 @@ export default function TakeQuizPage() {
         setAnswers(map)
         setWarningCount(v.warningCount)
         setView(v)
-        if (v.proctoring.requireFullscreen && document.fullscreenEnabled && !document.fullscreenElement) setNeedFullscreen(true)
         if (pendingRef.current.size > 0) scheduleFlush(0)
       })
       .catch((e) => !cancelled && setLoadError(errorMessage(e)))
@@ -127,6 +134,11 @@ export default function TakeQuizPage() {
       const res = await api.put<SaveAnswersResponse>(`/api/student/attempts/${attemptId}/answers`, {
         answers: items.map(([questionId, s]) => ({ questionId, optionId: s.optionId, seq: s.seq })),
       })
+      if (res.status !== 'IN_PROGRESS') {
+        // The server ended the attempt (return-to-fullscreen countdown expired).
+        goSubmitted('fullscreen')
+        return
+      }
       for (const [qid, sent] of items) {
         const pending = pendingRef.current.get(qid)
         if (pending && pending.seq <= sent.seq) pendingRef.current.delete(qid)
@@ -222,7 +234,7 @@ export default function TakeQuizPage() {
   const onMessage = useCallback(
     (msg: SocketMessage) => {
       const d = msg.data as { attemptId?: number; attempt?: { id: number }; reason?: string }
-      if (msg.type === 'attempt_finalized' && d.attemptId === attemptId) goSubmitted(d.reason === 'PROCTORING' ? 'proctoring' : undefined)
+      if (msg.type === 'attempt_finalized' && d.attemptId === attemptId) goSubmitted(d.reason === 'PROCTORING' ? 'proctoring' : d.reason === 'FULLSCREEN' ? 'fullscreen' : undefined)
       if (msg.type === 'session_ended') goSubmitted()
       if (msg.type === 'session_snapshot' && view && !d.attempt) {
         // Reconnected and the server has no running attempt for us any more.
@@ -247,8 +259,12 @@ export default function TakeQuizPage() {
         const res = await api.post<ProctoringEventResponse>(`/api/student/attempts/${attemptId}/proctoring-events`, body)
         setWarningCount(res.warningCount)
         if (res.autoSubmitted) {
-          goSubmitted('proctoring')
+          goSubmitted(res.reason === 'FULLSCREEN' ? 'fullscreen' : 'proctoring')
           return
+        }
+        // The server's deadline is authoritative (a reload never restarts the countdown).
+        if (proctoring.requireFullscreen) {
+          setFsDeadline(res.fullscreenDeadline ? new Date(res.fullscreenDeadline).getTime() - offsetRef.current : null)
         }
         if (res.showWarning && res.message) setWarning(res.message)
         while (failed.length) await api.post(`/api/student/attempts/${attemptId}/proctoring-events`, failed.shift())
@@ -267,28 +283,61 @@ export default function TakeQuizPage() {
       awaySince = null
       void send('FOCUS_RETURNED', { awayMs })
     }
-    const onVisibility = () => (document.hidden ? lost() : back())
+    // Browsers don't always deliver a matching focus event after a blur (other windows, OS
+    // dialogs, some mobile browsers). Re-derive the real state from the document on every event
+    // and on a short poll, so a missed "came back" can never stop later page-leaves from counting.
+    const isAway = () => document.hidden || !document.hasFocus()
+    const sync = () => (isAway() ? lost() : back())
+    const onVisibility = sync
+    const poll = setInterval(sync, 1000)
+    const startCountdownLocally = () =>
+      setFsDeadline((d) => d ?? Date.now() + proctoring.fullscreenReturnSeconds * 1000)
     const onFullscreen = () => {
       if (!proctoring.requireFullscreen) return
       if (document.fullscreenElement) {
-        setNeedFullscreen(false)
+        setFsDeadline(null)
         void send('FULLSCREEN_ENTER')
       } else if (!finishedRef.current) {
-        setNeedFullscreen(true)
+        startCountdownLocally()
         void send('FULLSCREEN_EXIT', { fullscreenSupported: document.fullscreenEnabled })
       }
+    }
+    // Opened (or reloaded) outside fullscreen: start/continue the countdown without a strike.
+    if (proctoring.requireFullscreen && document.fullscreenEnabled && !document.fullscreenElement) {
+      startCountdownLocally()
+      void send('FULLSCREEN_EXIT', { reason: 'page_load' })
     }
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('blur', lost)
     window.addEventListener('focus', back)
     document.addEventListener('fullscreenchange', onFullscreen)
     return () => {
+      clearInterval(poll)
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('blur', lost)
       window.removeEventListener('focus', back)
       document.removeEventListener('fullscreenchange', onFullscreen)
     }
   }, [attemptId, proctoring, goSubmitted])
+
+  // --------------------------------------------------------- fullscreen countdown expiry
+  const fsRemaining = fsDeadline === null ? null : fsDeadline - now
+  const fsExpired = fsRemaining !== null && fsRemaining <= 0
+  useEffect(() => {
+    if (!fsExpired) return
+    // The server decides (with a short network grace); ask until it has finalized the attempt.
+    const check = () =>
+      api
+        .get<AttemptView>(`/api/student/attempts/${attemptId}`)
+        .then((v) => {
+          if (v.status !== 'IN_PROGRESS') goSubmitted('fullscreen')
+          else if (!v.fullscreenDeadline) setFsDeadline(null) // returned just in time
+        })
+        .catch(() => undefined)
+    void check()
+    const t = setInterval(check, 1500)
+    return () => clearInterval(t)
+  }, [fsExpired, attemptId, goSubmitted])
 
   // ---------------------------------------------------------------------------- render
   if (loadError)
@@ -358,13 +407,6 @@ export default function TakeQuizPage() {
               <button type="button" className="ml-2 font-medium underline" onClick={() => setWarning(null)}>
                 Dismiss
               </button>
-            </Alert>
-          )}
-          {needFullscreen && (
-            <Alert tone="warning" title="Fullscreen is required for this quiz">
-              <Button size="sm" className="mt-2" onClick={() => document.documentElement.requestFullscreen().catch(() => undefined)}>
-                <Maximize /> Return to fullscreen
-              </Button>
             </Alert>
           )}
           {saveState === 'offline' && (
@@ -516,6 +558,16 @@ export default function TakeQuizPage() {
         </div>
       </Dialog>
 
+      {fsRemaining !== null && (
+        <FullscreenCountdown
+          secondsLeft={Math.min(view.proctoring.fullscreenReturnSeconds, Math.max(0, Math.ceil(fsRemaining / 1000)))}
+          total={view.proctoring.fullscreenReturnSeconds}
+          warnings={warningCount}
+          maxWarnings={view.proctoring.autoSubmitWarnings}
+          onReturn={() => document.documentElement.requestFullscreen().catch(() => undefined)}
+        />
+      )}
+
       {submitting && !confirmOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-white/80">
           <p className="flex items-center gap-2 text-slate-700">
@@ -524,6 +576,69 @@ export default function TakeQuizPage() {
           {submitError && <ErrorAlert error={submitError} onRetry={submit} />}
         </div>
       )}
+    </div>
+  )
+}
+
+/** Blocks the quiz until the student returns to fullscreen; the server submits when it runs out. */
+function FullscreenCountdown({
+  secondsLeft,
+  total,
+  warnings,
+  maxWarnings,
+  onReturn,
+}: {
+  secondsLeft: number
+  total: number
+  warnings: number
+  maxWarnings: number
+  onReturn: () => void
+}) {
+  const expired = secondsLeft <= 0
+  const radius = 44
+  const circumference = 2 * Math.PI * radius
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/85 px-4" role="alertdialog" aria-modal="true" aria-labelledby="fs-title" aria-describedby="fs-desc">
+      <div className="w-full max-w-sm rounded-lg border border-slate-700 bg-white p-7 text-center">
+        <div className="relative mx-auto size-28">
+          <svg viewBox="0 0 100 100" className="size-28 -rotate-90" aria-hidden>
+            <circle cx="50" cy="50" r={radius} fill="none" stroke="var(--color-slate-200)" strokeWidth="6" />
+            <circle
+              cx="50"
+              cy="50"
+              r={radius}
+              fill="none"
+              stroke={secondsLeft <= 3 ? 'var(--color-red-600)' : 'var(--color-primary-600)'}
+              strokeWidth="6"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={circumference * (1 - secondsLeft / total)}
+              className="transition-[stroke-dashoffset] duration-500 ease-linear"
+            />
+          </svg>
+          <span className={cn('absolute inset-0 grid place-items-center font-mono text-4xl font-semibold tabular-nums', secondsLeft <= 3 ? 'text-red-700' : 'text-slate-900')} aria-live="assertive">
+            {expired ? <Loader2 className="size-8 animate-spin text-slate-500" /> : secondsLeft}
+          </span>
+        </div>
+        <h2 id="fs-title" className="mt-5 text-lg font-semibold text-slate-900">
+          {expired ? 'Submitting your quiz…' : 'Return to fullscreen'}
+        </h2>
+        <p id="fs-desc" className="mt-1.5 text-sm text-slate-600">
+          {expired
+            ? 'You did not return to fullscreen in time. Your saved answers are being submitted.'
+            : `This quiz must be taken in fullscreen. If you don't return within ${secondsLeft} second${secondsLeft === 1 ? '' : 's'}, your quiz is submitted automatically. Your answers so far are saved.`}
+        </p>
+        {!expired && warnings > 0 && (
+          <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-[13px] font-medium text-amber-900">
+            Warning {warnings} of {maxWarnings}. At {maxWarnings} warnings your quiz is submitted automatically.
+          </p>
+        )}
+        {!expired && (
+          <Button size="lg" className="mt-5 w-full" onClick={onReturn} autoFocus>
+            <Maximize /> Return to fullscreen
+          </Button>
+        )}
+      </div>
     </div>
   )
 }

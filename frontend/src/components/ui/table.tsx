@@ -10,11 +10,11 @@ export function Table({ className, ...props }: HTMLAttributes<HTMLTableElement>)
 }
 
 export function THead({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
-  return <thead className={cn('border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500', className)} {...props} />
+  return <thead className={cn('border-b border-slate-200 text-[11px] uppercase tracking-[0.06em] text-slate-500', className)} {...props} />
 }
 
 export function Th({ className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {
-  return <th scope="col" className={cn('whitespace-nowrap px-4 py-2.5 font-medium', className)} {...props} />
+  return <th scope="col" className={cn('whitespace-nowrap px-4 py-2 font-medium', className)} {...props} />
 }
 
 export function Td({ className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {
@@ -22,5 +22,5 @@ export function Td({ className, ...props }: TdHTMLAttributes<HTMLTableCellElemen
 }
 
 export function Tr({ className, ...props }: HTMLAttributes<HTMLTableRowElement>) {
-  return <tr className={cn('border-b border-slate-100 last:border-0 hover:bg-slate-50/60', className)} {...props} />
+  return <tr className={cn('border-b border-slate-100 last:border-0 hover:bg-slate-50', className)} {...props} />
 }

@@ -3,25 +3,26 @@ import { cn } from '@/lib/utils'
 
 export type Tone = 'gray' | 'blue' | 'green' | 'amber' | 'red' | 'purple' | 'indigo'
 
-const tones: Record<Tone, string> = {
-  gray: 'bg-slate-100 text-slate-700 ring-slate-200',
-  blue: 'bg-sky-50 text-sky-700 ring-sky-200',
-  green: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  amber: 'bg-amber-50 text-amber-800 ring-amber-200',
-  red: 'bg-red-50 text-red-700 ring-red-200',
-  purple: 'bg-purple-50 text-purple-700 ring-purple-200',
-  indigo: 'bg-primary-50 text-primary-700 ring-primary-200',
+const tones: Record<Tone, { box: string; dot: string }> = {
+  gray: { box: 'bg-slate-100 text-slate-700', dot: 'bg-slate-400' },
+  blue: { box: 'bg-sky-50 text-sky-800', dot: 'bg-sky-500' },
+  green: { box: 'bg-emerald-50 text-emerald-800', dot: 'bg-emerald-600' },
+  amber: { box: 'bg-amber-50 text-amber-900', dot: 'bg-amber-500' },
+  red: { box: 'bg-red-50 text-red-800', dot: 'bg-red-600' },
+  purple: { box: 'bg-violet-50 text-violet-800', dot: 'bg-violet-500' },
+  indigo: { box: 'bg-primary-50 text-primary-800', dot: 'bg-primary-600' },
 }
 
-export function Badge({ tone = 'gray', children, className }: { tone?: Tone; children: ReactNode; className?: string }) {
+export function Badge({ tone = 'gray', children, className, dot }: { tone?: Tone; children: ReactNode; className?: string; dot?: boolean }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset',
-        tones[tone],
+        'inline-flex items-center gap-1.5 whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium leading-4',
+        tones[tone].box,
         className,
       )}
     >
+      {dot && <span className={cn('size-1.5 rounded-full', tones[tone].dot)} aria-hidden />}
       {children}
     </span>
   )
@@ -51,11 +52,11 @@ const STATUS: Record<string, { tone: Tone; label: string }> = {
   // review
   PENDING: { tone: 'amber', label: 'Pending review' },
   REVIEWED: { tone: 'green', label: 'Reviewed' },
-  FOLLOW_UP_REQUIRED: { tone: 'red', label: 'Follow-up required' },
+  FOLLOW_UP_REQUIRED: { tone: 'red', label: 'Follow-up' },
   // import
   CREATE: { tone: 'green', label: 'New' },
   UPDATE: { tone: 'blue', label: 'Update' },
-  SKIP_EXISTING: { tone: 'gray', label: 'Exists — skip' },
+  SKIP_EXISTING: { tone: 'gray', label: 'Exists, skip' },
   INVALID: { tone: 'red', label: 'Invalid' },
 }
 
@@ -63,8 +64,7 @@ export function StatusBadge({ status }: { status?: string | null }) {
   if (!status) return null
   const s = STATUS[status] ?? { tone: 'gray' as Tone, label: status }
   return (
-    <Badge tone={s.tone}>
-      {status === 'LIVE' && <span className="size-1.5 animate-pulse rounded-full bg-red-500" aria-hidden />}
+    <Badge tone={s.tone} dot>
       {s.label}
     </Badge>
   )

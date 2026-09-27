@@ -29,6 +29,9 @@ public interface AttemptRepository extends JpaRepository<Attempt, Long> {
     @Query("select a.id from Attempt a where a.status = com.quizsphere.entity.AttemptStatus.IN_PROGRESS and a.endsAt < :cutoff")
     List<Long> findExpiredInProgress(Instant cutoff);
 
+    @Query("select a.id from Attempt a where a.status = com.quizsphere.entity.AttemptStatus.IN_PROGRESS and a.fullscreenExitedAt < :cutoff")
+    List<Long> findFullscreenCountdownExpired(Instant cutoff);
+
     @Query("select a.id from Attempt a where a.status = com.quizsphere.entity.AttemptStatus.IN_PROGRESS and a.assignment.id = :assignmentId")
     List<Long> findInProgressIdsByAssignment(Long assignmentId);
 

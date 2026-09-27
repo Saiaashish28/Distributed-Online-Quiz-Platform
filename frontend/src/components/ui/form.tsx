@@ -2,7 +2,7 @@ import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttribu
 import { cn } from '@/lib/utils'
 
 const control =
-  'block w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 disabled:bg-slate-100 disabled:text-slate-500'
+  'block w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 hover:border-slate-400 focus:border-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-100 disabled:bg-slate-100 disabled:text-slate-500'
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cn(control, 'h-9', className)} {...props} />
@@ -22,7 +22,7 @@ export function Select({ className, children, ...props }: SelectHTMLAttributes<H
 
 export function Label({ htmlFor, children, className }: { htmlFor?: string; children: ReactNode; className?: string }) {
   return (
-    <label htmlFor={htmlFor} className={cn('mb-1 block text-sm font-medium text-slate-700', className)}>
+    <label htmlFor={htmlFor} className={cn('mb-1.5 block text-[13px] font-medium text-slate-700', className)}>
       {children}
     </label>
   )

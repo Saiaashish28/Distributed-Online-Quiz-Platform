@@ -123,8 +123,44 @@ public class AttemptService {
             if (at.getStatus() == AttemptStatus.IN_PROGRESS) {
                 finalizeAttempt(at, AttemptStatus.AUTO_SUBMITTED, now);
             }
+        } else if (fullscreenCountdownExpired(at, now)) {
+            entityManager.refresh(at, LockModeType.PESSIMISTIC_WRITE);
+            enforceFullscreen(at, now);
         }
         return view(at, now);
+    }
+
+    // --------------------------------------------------------------------- fullscreen
+
+    /** Network allowance after the countdown; short, because the student is waiting on screen. */
+    private static final Duration FULLSCREEN_GRACE = Duration.ofSeconds(2);
+
+    /** When the student must be back in fullscreen, or null if no countdown is running. */
+    public static Instant fullscreenDeadline(Attempt at) {
+        return at.getFullscreenExitedAt() == null ? null
+                : at.getFullscreenExitedAt().plusSeconds(ProctoringService.FULLSCREEN_RETURN_SECONDS);
+    }
+
+    private boolean fullscreenCountdownExpired(Attempt at, Instant now) {
+        Instant deadline = fullscreenDeadline(at);
+        return at.getStatus() == AttemptStatus.IN_PROGRESS && deadline != null && !now.isBefore(deadline.plus(FULLSCREEN_GRACE));
+    }
+
+    /**
+     * Auto-submits the attempt if the student stayed out of required fullscreen past the
+     * countdown (plus network grace). Caller must hold the attempt row lock.
+     */
+    boolean enforceFullscreen(Attempt at, Instant now) {
+        if (!fullscreenCountdownExpired(at, now)) return false;
+        finalizeAttempt(at, AttemptStatus.AUTO_SUBMITTED, now, "FULLSCREEN");
+        return true;
+    }
+
+    /** Scheduler backstop for students whose browser stopped reporting during a countdown. */
+    @Transactional
+    public boolean autoFinalizeFullscreen(Long attemptId) {
+        Attempt at = attemptRepository.lockById(attemptId).orElse(null);
+        return at != null && enforceFullscreen(at, Instant.now());
     }
 
     private AttemptView view(Attempt at, Instant now) {
@@ -150,7 +186,8 @@ public class AttemptService {
                 .toList();
         return new AttemptView(at.getId(), a.getId(), a.getName(), quiz.getTitle(), quiz.getInstructions(),
                 StudentRef.of(at.getStudent()), at.getStatus(), at.getAttemptNumber(), at.getStartedAt(),
-                at.getEndsAt(), now, qs, answers, StudentProctoring.of(a), at.getProctoringWarningCount());
+                at.getEndsAt(), now, qs, answers, StudentProctoring.of(a), at.getProctoringWarningCount(),
+                at.getStatus() == AttemptStatus.IN_PROGRESS ? fullscreenDeadline(at) : null);
     }
 
     // ------------------------------------------------------------------------ answers
@@ -164,6 +201,10 @@ public class AttemptService {
         }
         if (!now.isBefore(at.getEndsAt().plus(grace))) {
             throw ApiException.conflict("Time is up. Your saved answers will be submitted automatically.");
+        }
+        if (enforceFullscreen(at, now)) {
+            // Countdown expired: the attempt is now final; these late answers are not applied.
+            return new SaveAnswersResponse(now, currentAnswers(attemptId), at.getEndsAt(), now, at.getStatus());
         }
         Map<Long, Set<Long>> structure = questionRepository.findByQuizIdWithOptions(at.getAssignment().getQuiz().getId())
                 .stream().collect(Collectors.toMap(Question::getId,
@@ -180,10 +221,13 @@ public class AttemptService {
         for (AnswerItem item : req.answers()) {
             answerRepository.upsert(attemptId, item.questionId(), item.optionId(), item.seq(), now);
         }
-        List<SavedAnswer> saved = answerRepository.findByAttemptId(attemptId).stream()
+        return new SaveAnswersResponse(now, currentAnswers(attemptId), at.getEndsAt(), now, at.getStatus());
+    }
+
+    private List<SavedAnswer> currentAnswers(Long attemptId) {
+        return answerRepository.findByAttemptId(attemptId).stream()
                 .map(x -> new SavedAnswer(x.getQuestionId(), x.getOptionId(), x.getClientSeq(), x.getUpdatedAt()))
                 .toList();
-        return new SaveAnswersResponse(now, saved, at.getEndsAt(), now);
     }
 
     // ------------------------------------------------------------------------- submit
@@ -193,7 +237,7 @@ public class AttemptService {
     public SubmitResponse submit(Long attemptId, Long studentId) {
         Attempt at = lockOwnAttempt(attemptId, studentId);
         Instant now = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
-        if (at.getStatus() == AttemptStatus.IN_PROGRESS) {
+        if (at.getStatus() == AttemptStatus.IN_PROGRESS && !enforceFullscreen(at, now)) {
             AttemptStatus status = now.isBefore(at.getEndsAt().plus(grace))
                     ? AttemptStatus.SUBMITTED : AttemptStatus.AUTO_SUBMITTED;
             finalizeAttempt(at, status, now);

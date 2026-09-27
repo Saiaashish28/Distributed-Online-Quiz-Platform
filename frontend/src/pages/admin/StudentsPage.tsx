@@ -377,7 +377,7 @@ function StudentDialog({
                     type="button"
                     aria-pressed={on}
                     onClick={() => setCourseIds((ids) => (on ? ids.filter((x) => x !== c.id) : [...ids, c.id]))}
-                    className={`rounded-full border px-3 py-1 text-xs font-medium ${on ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
+                    className={`rounded-md border px-3 py-1 text-xs font-medium ${on ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
                   >
                     {c.courseCode} · {c.courseName}
                   </button>

@@ -460,6 +460,8 @@ export interface StudentProctoring {
   requireFullscreen: boolean
   /** Warning events after which the attempt is submitted automatically. */
   autoSubmitWarnings: number
+  /** Seconds to return to required fullscreen before the attempt is submitted. */
+  fullscreenReturnSeconds: number
 }
 
 export interface StudentAssignment {
@@ -521,6 +523,8 @@ export interface AttemptView {
   answers: SavedAnswer[]
   proctoring: StudentProctoring
   warningCount: number
+  /** Server time by which the student must be back in fullscreen (countdown running). */
+  fullscreenDeadline?: string
 }
 
 export interface SaveAnswersResponse {
@@ -528,6 +532,7 @@ export interface SaveAnswersResponse {
   answers: SavedAnswer[]
   endsAt: string
   serverTime: string
+  status: AttemptStatus
 }
 
 export interface SubmitResponse {
@@ -572,5 +577,7 @@ export interface ProctoringEventResponse {
   showWarning: boolean
   flagged: boolean
   autoSubmitted: boolean
+  reason?: 'PROCTORING' | 'FULLSCREEN'
+  fullscreenDeadline?: string
   message?: string
 }

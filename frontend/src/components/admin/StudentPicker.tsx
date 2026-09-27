@@ -81,7 +81,7 @@ export function StudentPicker({ value, onChange }: { value: StudentRef[]; onChan
       {value.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {value.map((s) => (
-            <span key={s.id} className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2.5 py-1 text-xs text-primary-800">
+            <span key={s.id} className="inline-flex items-center gap-1 rounded bg-primary-50 px-2 py-1 text-xs text-primary-800">
               <span className="font-mono">{s.registerNumber}</span> {s.fullName}
               <button type="button" aria-label={`Remove ${s.registerNumber}`} onClick={() => onChange(value.filter((v) => v.id !== s.id))}>
                 <X className="size-3" />

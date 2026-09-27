@@ -20,11 +20,12 @@ public final class StudentQuizDtos {
     }
 
     public record StudentProctoring(boolean enabled, int warningThreshold, boolean showWarnings,
-                                    boolean requireFullscreen, int autoSubmitWarnings) {
+                                    boolean requireFullscreen, int autoSubmitWarnings, int fullscreenReturnSeconds) {
         public static StudentProctoring of(Assignment a) {
             return new StudentProctoring(a.isProctoringEnabled(), a.getProctoringWarningThreshold(),
                     a.isProctoringShowWarnings(), a.isProctoringRequireFullscreen(),
-                    com.quizsphere.service.ProctoringService.AUTO_SUBMIT_WARNINGS);
+                    com.quizsphere.service.ProctoringService.AUTO_SUBMIT_WARNINGS,
+                    com.quizsphere.service.ProctoringService.FULLSCREEN_RETURN_SECONDS);
         }
     }
 
@@ -54,7 +55,8 @@ public final class StudentQuizDtos {
                               String instructions, StudentDtos.StudentRef student, AttemptStatus status,
                               int attemptNumber, Instant startedAt, Instant endsAt, Instant serverTime,
                               List<StudentQuestion> questions, List<SavedAnswer> answers,
-                              StudentProctoring proctoring, int warningCount) {
+                              StudentProctoring proctoring, int warningCount,
+                              /* set while a return-to-fullscreen countdown is running */ Instant fullscreenDeadline) {
     }
 
     public record AnswerItem(@NotNull Long questionId, Long optionId, @NotNull @PositiveOrZero Long seq) {
@@ -63,7 +65,8 @@ public final class StudentQuizDtos {
     public record SaveAnswersRequest(@NotEmpty @Size(max = 200) List<@Valid AnswerItem> answers) {
     }
 
-    public record SaveAnswersResponse(Instant savedAt, List<SavedAnswer> answers, Instant endsAt, Instant serverTime) {
+    public record SaveAnswersResponse(Instant savedAt, List<SavedAnswer> answers, Instant endsAt, Instant serverTime,
+                                      AttemptStatus status) {
     }
 
     public record SubmitResponse(Long attemptId, AttemptStatus status, Instant submittedAt, boolean resultsVisible,
@@ -88,6 +91,7 @@ public final class StudentQuizDtos {
     }
 
     public record ProctoringEventResponse(int warningCount, int warningThreshold, boolean showWarning,
-                                          boolean flagged, boolean autoSubmitted, String message) {
+                                          boolean flagged, boolean autoSubmitted, String reason,
+                                          Instant fullscreenDeadline, String message) {
     }
 }

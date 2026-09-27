@@ -67,14 +67,14 @@ export function ProctoringFields({ value, onChange }: { value: ProctoringSetting
       />
       {value.enabled && (
         <div className="ml-6 space-y-3 border-l border-slate-200 pl-4">
-          <Field label="Warning threshold" hint="Focus losses before an attempt is flagged for review (auto-submit always happens at 3)">
+          <Field label="Warning threshold" hint="Warnings before an attempt is flagged for review (auto-submit always happens at 3)">
             {(id) => (
               <Input id={id} className="w-28" type="number" min={1} max={100} value={value.warningThreshold} onChange={(e) => set({ warningThreshold: Number(e.target.value) || 1 })} />
             )}
           </Field>
           <Checkbox checked={value.showWarnings} onChange={(showWarnings) => set({ showWarnings })} label="Show warnings to the student" />
           <Checkbox checked={value.flagForReview} onChange={(flagForReview) => set({ flagForReview })} label="Flag attempts for review at the threshold" />
-          <Checkbox checked={value.requireFullscreen} onChange={(requireFullscreen) => set({ requireFullscreen })} label="Ask students to stay in fullscreen" description="Where the browser supports it; exits are recorded." />
+          <Checkbox checked={value.requireFullscreen} onChange={(requireFullscreen) => set({ requireFullscreen })} label="Require fullscreen" description="Each exit from fullscreen counts as a warning (3 warnings auto-submit) and starts a 10-second countdown to return; if it runs out the quiz is submitted automatically. Browsers without fullscreen support (e.g. iPhone Safari) are not affected." />
         </div>
       )}
     </div>

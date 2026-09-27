@@ -13,6 +13,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ExportProctoringIntegrationTest extends IntegrationTest {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    com.quizsphere.service.QuizScheduler scheduler;
+
     private long setupAssignment(boolean proctoring) throws Exception {
         createStudent("21CSE001", 3, "CSE", "A", null);
         createStudent("21CSE002", 3, "CSE", "B", null);
@@ -186,10 +189,12 @@ class ExportProctoringIntegrationTest extends IntegrationTest {
         // Returning to the page never counts toward the limit.
         post(url, st, Map.of("eventType", "FOCUS_LOST"));
         post(url, st, Map.of("eventType", "FOCUS_RETURNED"));
+        ageEvents(attempt); // separate actions, not one tab switch
         Res second = post(url, st, Map.of("eventType", "FULLSCREEN_EXIT"));
         assertThat(second.body().path("autoSubmitted").asBoolean()).isFalse();
         assertThat(jdbc.queryForObject("select status from attempts where id = ?", String.class, attempt)).isEqualTo("IN_PROGRESS");
 
+        ageEvents(attempt);
         Res third = post(url, st, Map.of("eventType", "FOCUS_LOST"));
         assertThat(third.body().path("autoSubmitted").asBoolean()).isTrue();
         assertThat(third.body().path("warningCount").asInt()).isEqualTo(3);
@@ -201,6 +206,113 @@ class ExportProctoringIntegrationTest extends IntegrationTest {
         assertThat(put("/api/student/attempts/" + attempt + "/answers", st, Map.of("answers", List.of(Map.of(
                 "questionId", q1.path("id").asLong(), "optionId", q1.path("options").get(1).path("id").asLong(), "seq", 2))))
                 .status()).isEqualTo(409);
+    }
+
+    private long fullscreenAssignment() throws Exception {
+        createStudent("21CSE001", 3, "CSE", "A", null);
+        long quiz = publishedQuiz(2);
+        return createAssignment(new HashMap<>(Map.of("quizId", quiz, "name", "FS", "type", "INDIVIDUAL",
+                "registerNumbers", List.of("21CSE001"), "resultsReleaseMode", "MANUAL",
+                "proctoring", Map.of("enabled", true, "warningThreshold", 3, "showWarnings", true,
+                        "flagForReview", true, "requireFullscreen", true))));
+    }
+
+    @Test
+    void fullscreenCountdownStartsOnExitAndIsCancelledOnReturn() throws Exception {
+        long a = fullscreenAssignment();
+        String st = studentLogin("21CSE001");
+        long attempt = post("/api/student/assignments/" + a + "/start", st, null).body().path("attemptId").asLong();
+        String url = "/api/student/attempts/" + attempt + "/proctoring-events";
+
+        Res exit = post(url, st, Map.of("eventType", "FULLSCREEN_EXIT"));
+        assertThat(exit.body().path("fullscreenDeadline").asText()).isNotBlank();
+        assertThat(get("/api/student/attempts/" + attempt, st).body().path("fullscreenDeadline").asText()).isNotBlank();
+
+        Res back = post(url, st, Map.of("eventType", "FULLSCREEN_ENTER"));
+        assertThat(back.body().has("fullscreenDeadline")).isFalse();
+        assertThat(jdbc.queryForObject("select fullscreen_exited_at is null from attempts where id = ?", Boolean.class, attempt)).isTrue();
+
+        // Loading the page outside fullscreen starts a countdown but is not a page-leave warning,
+        // and a second report (e.g. another reload) keeps the original start time.
+        Res onLoad = post(url, st, Map.of("eventType", "FULLSCREEN_EXIT", "metadata", Map.of("reason", "page_load")));
+        assertThat(onLoad.body().path("warningCount").asInt()).isEqualTo(1); // the real exit counted; the page load did not
+        String firstDeadline = onLoad.body().path("fullscreenDeadline").asText();
+        Thread.sleep(50);
+        Res again = post(url, st, Map.of("eventType", "FULLSCREEN_EXIT", "metadata", Map.of("reason", "page_load")));
+        assertThat(again.body().path("fullscreenDeadline").asText()).isEqualTo(firstDeadline);
+        assertThat(jdbc.queryForObject("select status from attempts where id = ?", String.class, attempt)).isEqualTo("IN_PROGRESS");
+    }
+
+    /** Moves recorded events into the past so the next event is a separate action. */
+    private void ageEvents(long attempt) {
+        jdbc.update("update proctoring_events set occurred_at = occurred_at - interval '1 minute' where attempt_id = ?", attempt);
+    }
+
+    @Test
+    void eachFullscreenExitIsAWarningAndTheThirdAutoSubmits() throws Exception {
+        long a = fullscreenAssignment();
+        String st = studentLogin("21CSE001");
+        JsonNode start = post("/api/student/assignments/" + a + "/start", st, null).body();
+        long attempt = start.path("attemptId").asLong();
+        long quizId = get("/api/admin/assignments/" + a, adminToken).body().path("summary").path("quizId").asLong();
+        JsonNode q1 = get("/api/admin/quizzes/" + quizId, adminToken).body().path("questions").get(0);
+        put("/api/student/attempts/" + attempt + "/answers", st, Map.of("answers", List.of(Map.of(
+                "questionId", q1.path("id").asLong(), "optionId", q1.path("options").get(0).path("id").asLong(), "seq", 1))));
+        String url = "/api/student/attempts/" + attempt + "/proctoring-events";
+
+        for (int i = 1; i <= 2; i++) {
+            Res exit = post(url, st, Map.of("eventType", "FULLSCREEN_EXIT"));
+            assertThat(exit.body().path("warningCount").asInt()).isEqualTo(i);
+            assertThat(exit.body().path("autoSubmitted").asBoolean()).isFalse();
+            assertThat(exit.body().path("fullscreenDeadline").asText()).isNotBlank(); // countdown running
+            assertThat(exit.body().path("message").asText()).contains(i + " of 3").contains("10 seconds");
+            post(url, st, Map.of("eventType", "FULLSCREEN_ENTER"));
+            ageEvents(attempt);
+        }
+        Res third = post(url, st, Map.of("eventType", "FULLSCREEN_EXIT"));
+        assertThat(third.body().path("autoSubmitted").asBoolean()).isTrue();
+        assertThat(third.body().path("reason").asText()).isEqualTo("PROCTORING");
+        assertThat(jdbc.queryForObject("select status from attempts where id = ?", String.class, attempt)).isEqualTo("AUTO_SUBMITTED");
+        assertThat(jdbc.queryForObject("select score from attempts where id = ?", Double.class, attempt)).isEqualTo(1.0);
+    }
+
+    @Test
+    void tabSwitchThatAlsoExitsFullscreenCountsOnce() throws Exception {
+        long a = fullscreenAssignment();
+        String st = studentLogin("21CSE001");
+        long attempt = post("/api/student/assignments/" + a + "/start", st, null).body().path("attemptId").asLong();
+        String url = "/api/student/attempts/" + attempt + "/proctoring-events";
+        post(url, st, Map.of("eventType", "FOCUS_LOST"));
+        Res exit = post(url, st, Map.of("eventType", "FULLSCREEN_EXIT"));
+        assertThat(exit.body().path("warningCount").asInt()).isEqualTo(1);
+        assertThat(exit.body().path("fullscreenDeadline").asText()).isNotBlank(); // countdown still starts
+        assertThat(jdbc.queryForObject("select count(*) from proctoring_events where attempt_id = ?", Integer.class, attempt)).isEqualTo(2);
+    }
+
+    @Test
+    void expiredFullscreenCountdownAutoSubmitsOnNextRequestOrBySchedule() throws Exception {
+        long a = fullscreenAssignment();
+        String st = studentLogin("21CSE001");
+        long attempt = post("/api/student/assignments/" + a + "/start", st, null).body().path("attemptId").asLong();
+        String url = "/api/student/attempts/" + attempt + "/proctoring-events";
+        post(url, st, Map.of("eventType", "FULLSCREEN_EXIT"));
+        jdbc.update("update attempts set fullscreen_exited_at = now() - interval '1 minute' where id = ?", attempt);
+
+        // Returning too late does not help: the server submits instead.
+        Res late = post(url, st, Map.of("eventType", "FULLSCREEN_ENTER"));
+        assertThat(late.body().path("autoSubmitted").asBoolean()).isTrue();
+        assertThat(late.body().path("reason").asText()).isEqualTo("FULLSCREEN");
+        assertThat(jdbc.queryForObject("select status from attempts where id = ?", String.class, attempt)).isEqualTo("AUTO_SUBMITTED");
+
+        // Scheduler backstop when the browser goes silent.
+        createStudent("21CSE002", 3, "CSE", "A", null);
+        patch("/api/admin/assignments/" + a, adminToken, Map.of("registerNumbers", List.of("21CSE001", "21CSE002")));
+        String st2 = studentLogin("21CSE002");
+        long attempt2 = post("/api/student/assignments/" + a + "/start", st2, null).body().path("attemptId").asLong();
+        post("/api/student/attempts/" + attempt2 + "/proctoring-events", st2, Map.of("eventType", "FULLSCREEN_EXIT"));
+        jdbc.update("update attempts set fullscreen_exited_at = now() - interval '1 minute' where id = ?", attempt2);
+        scheduler.run();
+        assertThat(jdbc.queryForObject("select status from attempts where id = ?", String.class, attempt2)).isEqualTo("AUTO_SUBMITTED");
     }
 
     @Test
