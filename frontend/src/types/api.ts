@@ -458,6 +458,8 @@ export interface StudentProctoring {
   warningThreshold: number
   showWarnings: boolean
   requireFullscreen: boolean
+  /** Warning events after which the attempt is submitted automatically. */
+  autoSubmitWarnings: number
 }
 
 export interface StudentAssignment {
@@ -569,5 +571,6 @@ export interface ProctoringEventResponse {
   warningThreshold: number
   showWarning: boolean
   flagged: boolean
+  autoSubmitted: boolean
   message?: string
 }

@@ -60,12 +60,15 @@ export default function TakeQuizPage() {
   const retryDelay = useRef(1000)
   const finishedRef = useRef(false)
 
-  const goSubmitted = useCallback(() => {
-    finishedRef.current = true
-    clearTimeout(flushTimer.current)
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined)
-    navigate(`/student/attempts/${attemptId}/submitted`, { replace: true })
-  }, [attemptId, navigate])
+  const goSubmitted = useCallback(
+    (reason?: 'proctoring') => {
+      finishedRef.current = true
+      clearTimeout(flushTimer.current)
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined)
+      navigate(`/student/attempts/${attemptId}/submitted`, { replace: true, state: reason ? { reason } : undefined })
+    },
+    [attemptId, navigate],
+  )
 
   // ------------------------------------------------------------------ load / resume
   useEffect(() => {
@@ -218,8 +221,8 @@ export default function TakeQuizPage() {
   // ------------------------------------------------------------------------ realtime
   const onMessage = useCallback(
     (msg: SocketMessage) => {
-      const d = msg.data as { attemptId?: number; attempt?: { id: number } }
-      if (msg.type === 'attempt_finalized' && d.attemptId === attemptId) goSubmitted()
+      const d = msg.data as { attemptId?: number; attempt?: { id: number }; reason?: string }
+      if (msg.type === 'attempt_finalized' && d.attemptId === attemptId) goSubmitted(d.reason === 'PROCTORING' ? 'proctoring' : undefined)
       if (msg.type === 'session_ended') goSubmitted()
       if (msg.type === 'session_snapshot' && view && !d.attempt) {
         // Reconnected and the server has no running attempt for us any more.
@@ -243,6 +246,10 @@ export default function TakeQuizPage() {
       try {
         const res = await api.post<ProctoringEventResponse>(`/api/student/attempts/${attemptId}/proctoring-events`, body)
         setWarningCount(res.warningCount)
+        if (res.autoSubmitted) {
+          goSubmitted('proctoring')
+          return
+        }
         if (res.showWarning && res.message) setWarning(res.message)
         while (failed.length) await api.post(`/api/student/attempts/${attemptId}/proctoring-events`, failed.shift())
       } catch (e) {
@@ -281,7 +288,7 @@ export default function TakeQuizPage() {
       window.removeEventListener('focus', back)
       document.removeEventListener('fullscreenchange', onFullscreen)
     }
-  }, [attemptId, proctoring])
+  }, [attemptId, proctoring, goSubmitted])
 
   // ---------------------------------------------------------------------------- render
   if (loadError)
@@ -337,8 +344,12 @@ export default function TakeQuizPage() {
           {view.proctoring.enabled && (
             <div className="flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
               <ShieldCheck className="size-4 shrink-0" />
-              Browser monitoring is on: leaving this page is recorded for your instructor to review.
-              {warningCount > 0 && <span className="ml-auto font-medium">Recorded: {warningCount}</span>}
+              Browser monitoring is on: leaving this page is recorded. After {view.proctoring.autoSubmitWarnings} times your quiz is submitted automatically.
+              {warningCount > 0 && (
+                <span className="ml-auto whitespace-nowrap font-medium">
+                  Recorded: {warningCount} of {view.proctoring.autoSubmitWarnings}
+                </span>
+              )}
             </div>
           )}
           {warning && (

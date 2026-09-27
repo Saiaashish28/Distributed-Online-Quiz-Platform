@@ -218,6 +218,11 @@ public class AttemptService {
      * Caller must hold the attempt row lock.
      */
     void finalizeAttempt(Attempt at, AttemptStatus status, Instant now) {
+        finalizeAttempt(at, status, now, null);
+    }
+
+    /** @param reason optional cause sent to the student client, e.g. "PROCTORING". */
+    void finalizeAttempt(Attempt at, AttemptStatus status, Instant now, String reason) {
         List<Question> questions = questionRepository.findByQuizIdWithOptions(at.getAssignment().getQuiz().getId());
         Map<Long, Answer> answers = answerRepository.findByAttemptId(at.getId()).stream()
                 .collect(Collectors.toMap(Answer::getQuestionId, x -> x));
@@ -247,7 +252,8 @@ public class AttemptService {
 
         Long assignmentId = at.getAssignment().getId();
         hub.toStudent(assignmentId, at.getStudent().getId(), "attempt_finalized",
-                Map.of("attemptId", at.getId(), "status", status));
+                reason == null ? Map.of("attemptId", at.getId(), "status", status)
+                        : Map.of("attemptId", at.getId(), "status", status, "reason", reason));
         progressService.publish(assignmentId);
     }
 

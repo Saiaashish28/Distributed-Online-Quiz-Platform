@@ -29,20 +29,25 @@ public class ProctoringService {
 
     private static final int MAX_EVENTS_PER_ATTEMPT = 1000;
 
+    /** Warning events (focus lost / fullscreen exit) after which a monitored attempt is submitted automatically. */
+    public static final int AUTO_SUBMIT_WARNINGS = 3;
+
     private final AttemptRepository attemptRepository;
     private final ProctoringEventRepository eventRepository;
     private final UserRepository userRepository;
     private final AssignmentService assignmentService;
+    private final AttemptService attemptService;
     private final RealtimeHub hub;
     private final Duration grace;
 
     public ProctoringService(AttemptRepository attemptRepository, ProctoringEventRepository eventRepository,
-                             UserRepository userRepository, AssignmentService assignmentService, RealtimeHub hub,
-                             AppProperties props) {
+                             UserRepository userRepository, AssignmentService assignmentService,
+                             AttemptService attemptService, RealtimeHub hub, AppProperties props) {
         this.attemptRepository = attemptRepository;
         this.eventRepository = eventRepository;
         this.userRepository = userRepository;
         this.assignmentService = assignmentService;
+        this.attemptService = attemptService;
         this.hub = hub;
         this.grace = Duration.ofSeconds(props.quiz().graceSeconds());
     }
@@ -64,12 +69,17 @@ public class ProctoringService {
         }
         int threshold = a.getProctoringWarningThreshold();
         if (eventRepository.countByAttemptId(attemptId) >= MAX_EVENTS_PER_ATTEMPT) {
-            return response(a, at, false);
+            return response(a, at, false, false);
         }
         boolean warning = req.eventType().isWarning();
+        boolean autoSubmit = false;
         if (warning) {
             at.setProctoringWarningCount(at.getProctoringWarningCount() + 1);
             if (a.isProctoringFlagForReview() && at.getProctoringWarningCount() >= threshold) {
+                at.setProctoringFlagged(true);
+            }
+            if (at.getProctoringWarningCount() >= AUTO_SUBMIT_WARNINGS) {
+                autoSubmit = true;
                 at.setProctoringFlagged(true);
             }
         }
@@ -82,6 +92,11 @@ public class ProctoringService {
         e.setWarningCount(at.getProctoringWarningCount());
         eventRepository.save(e);
         attemptRepository.saveAndFlush(at);
+        if (autoSubmit) {
+            // Institution policy: the attempt ends and its saved answers are graded; nothing is deducted.
+            // The attempt row is already locked above, as finalizeAttempt requires.
+            attemptService.finalizeAttempt(at, AttemptStatus.AUTO_SUBMITTED, now, "PROCTORING");
+        }
 
         Student s = at.getStudent();
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -94,19 +109,27 @@ public class ProctoringService {
         payload.put("occurredAt", now);
         payload.put("warningCount", at.getProctoringWarningCount());
         payload.put("flagged", at.isProctoringFlagged());
+        payload.put("autoSubmitted", autoSubmit);
         hub.toAdmins(a.getId(), "proctoring_event_recorded", payload);
-        return response(a, at, warning);
+        return response(a, at, warning, autoSubmit);
     }
 
-    private ProctoringEventResponse response(Assignment a, Attempt at, boolean warning) {
+    private ProctoringEventResponse response(Assignment a, Attempt at, boolean warning, boolean autoSubmitted) {
         int count = at.getProctoringWarningCount();
         int threshold = a.getProctoringWarningThreshold();
-        boolean show = warning && a.isProctoringShowWarnings();
-        String message = show
-                ? "Leaving the quiz page was recorded (" + count + " of " + threshold + "). "
-                + (count >= threshold ? "Your attempt may be reviewed by your instructor." : "Please stay on this page.")
-                : null;
-        return new ProctoringEventResponse(count, threshold, show, at.isProctoringFlagged(), message);
+        // The auto-submit notice is always shown, even when routine warnings are hidden.
+        boolean show = autoSubmitted || (warning && a.isProctoringShowWarnings());
+        String message;
+        if (autoSubmitted) {
+            message = "You left the quiz page " + AUTO_SUBMIT_WARNINGS + " times, so your quiz was submitted automatically. "
+                    + "Your saved answers have been graded.";
+        } else if (show) {
+            message = "Leaving the quiz page was recorded (" + count + " of " + AUTO_SUBMIT_WARNINGS + "). "
+                    + "At " + AUTO_SUBMIT_WARNINGS + " your quiz is submitted automatically.";
+        } else {
+            message = null;
+        }
+        return new ProctoringEventResponse(count, threshold, show, at.isProctoringFlagged(), autoSubmitted, message);
     }
 
     /** Keeps only a few small, non-identifying fields. */

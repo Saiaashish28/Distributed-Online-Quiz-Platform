@@ -63,11 +63,11 @@ export function ProctoringFields({ value, onChange }: { value: ProctoringSetting
         checked={value.enabled}
         onChange={(enabled) => set({ enabled })}
         label="Enable browser monitoring"
-        description="Records when the quiz page loses focus or exits fullscreen. Students see a clear notice. Signals are for review only — marks are never changed automatically."
+        description="Records when the quiz page loses focus or exits fullscreen. Students see a clear notice. After 3 such events the attempt is submitted automatically; saved answers are graded and nothing is deducted."
       />
       {value.enabled && (
         <div className="ml-6 space-y-3 border-l border-slate-200 pl-4">
-          <Field label="Warning threshold" hint="Number of focus losses before an attempt is flagged">
+          <Field label="Warning threshold" hint="Focus losses before an attempt is flagged for review (auto-submit always happens at 3)">
             {(id) => (
               <Input id={id} className="w-28" type="number" min={1} max={100} value={value.warningThreshold} onChange={(e) => set({ warningThreshold: Number(e.target.value) || 1 })} />
             )}

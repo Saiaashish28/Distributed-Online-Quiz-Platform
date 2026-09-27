@@ -1,3 +1,4 @@
+# Deployment walkthrough: see "Deployment" in README.md (GitHub -> Neon -> Render Blueprint).
 # Render Blueprint: backend (Docker web service) + frontend (static site).
 # PostgreSQL is expected on Neon or another managed provider; set DATABASE_URL in the dashboard.
 services:

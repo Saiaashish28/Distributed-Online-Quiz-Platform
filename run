@@ -1,0 +1,12 @@
+cd "F:\Distributed Online Quiz Platform"
+docker compose up -d
+cd backend
+.\run-dev.ps1
+
+
+
+cd "F:\Distributed Online Quiz Platform\frontend"
+npm install
+npm run dev
+
+

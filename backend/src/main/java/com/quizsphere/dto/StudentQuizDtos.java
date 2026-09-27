@@ -20,10 +20,11 @@ public final class StudentQuizDtos {
     }
 
     public record StudentProctoring(boolean enabled, int warningThreshold, boolean showWarnings,
-                                    boolean requireFullscreen) {
+                                    boolean requireFullscreen, int autoSubmitWarnings) {
         public static StudentProctoring of(Assignment a) {
             return new StudentProctoring(a.isProctoringEnabled(), a.getProctoringWarningThreshold(),
-                    a.isProctoringShowWarnings(), a.isProctoringRequireFullscreen());
+                    a.isProctoringShowWarnings(), a.isProctoringRequireFullscreen(),
+                    com.quizsphere.service.ProctoringService.AUTO_SUBMIT_WARNINGS);
         }
     }
 
@@ -87,6 +88,6 @@ public final class StudentQuizDtos {
     }
 
     public record ProctoringEventResponse(int warningCount, int warningThreshold, boolean showWarning,
-                                          boolean flagged, String message) {
+                                          boolean flagged, boolean autoSubmitted, String message) {
     }
 }

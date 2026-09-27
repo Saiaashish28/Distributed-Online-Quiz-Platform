@@ -68,6 +68,7 @@ interface LiveEvent {
   occurredAt: string
   warningCount: number
   flagged: boolean
+  autoSubmitted?: boolean
 }
 
 export default function AssignmentDetailPage() {
@@ -352,6 +353,7 @@ function MonitorTab({
                   <span>{e.fullName}</span>
                   <Badge tone={e.eventType === 'FOCUS_LOST' || e.eventType === 'FULLSCREEN_EXIT' ? 'amber' : 'gray'}>{e.eventType.replace('_', ' ').toLowerCase()}</Badge>
                   <span className="ml-auto text-xs text-slate-500">warnings: {e.warningCount}</span>
+                  {e.autoSubmitted && <Badge tone="red">auto-submitted</Badge>}
                   {e.flagged && <Flag className="size-4 text-red-600" aria-label="Flagged" />}
                 </li>
               ))}
@@ -507,7 +509,7 @@ function ProctoringTab({ assignmentId, enabled }: { assignmentId: number; enable
     <div className="space-y-4">
       <Alert tone="info" title="Signals, not proof">
         Focus and fullscreen events show that the quiz page lost focus — they can't tell why (notifications, accidental clicks, accessibility tools). Browsers can't detect every
-        application switch. Review in context; marks are never changed automatically.
+        application switch. Review in context. By policy an attempt is submitted automatically after 3 such events: its saved answers are graded and nothing is deducted.
       </Alert>
       {!enabled && <Alert tone="warning">Browser monitoring is disabled for this assignment.</Alert>}
       {data.attempts.length === 0 ? (

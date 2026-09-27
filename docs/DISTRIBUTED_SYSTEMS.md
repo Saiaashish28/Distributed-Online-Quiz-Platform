@@ -83,6 +83,7 @@ Other considerations for multiple instances:
 
 - JWTs carry only the user id and role; on every request the server reloads the user, so deactivation and role changes apply immediately across instances.
 - WebSocket clients authenticate with their first message (not the URL, keeping tokens out of logs) and are authorized per assignment: admins must own it, students must be eligible. Unauthorized sockets are closed with `4401`/`4403`.
+- Monitoring auto-submit (3rd focus-loss/fullscreen-exit event) is decided on the server inside the same attempt row lock used for saves and submits, so it cannot race a manual submit; the student is notified by the HTTP response and by an `attempt_finalized` event carrying `reason: "PROCTORING"`.
 - Events never contain answer keys or tokens. Student-facing snapshots omit other students' details; proctoring events go only to admins.
 - CORS and allowed WebSocket origins are restricted to `FRONTEND_ORIGIN`. Production must use HTTPS and WSS.
 

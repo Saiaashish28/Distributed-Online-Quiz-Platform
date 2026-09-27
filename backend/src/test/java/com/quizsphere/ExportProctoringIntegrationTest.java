@@ -172,6 +172,38 @@ class ExportProctoringIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void thirdWarningAutoSubmitsWithSavedAnswers() throws Exception {
+        long a = setupAssignment(true);
+        String st = studentLogin("21CSE001");
+        JsonNode start = post("/api/student/assignments/" + a + "/start", st, null).body();
+        long attempt = start.path("attemptId").asLong();
+        long quizId = get("/api/admin/assignments/" + a, adminToken).body().path("summary").path("quizId").asLong();
+        JsonNode q1 = get("/api/admin/quizzes/" + quizId, adminToken).body().path("questions").get(0);
+        put("/api/student/attempts/" + attempt + "/answers", st, Map.of("answers", List.of(Map.of(
+                "questionId", q1.path("id").asLong(), "optionId", q1.path("options").get(0).path("id").asLong(), "seq", 1))));
+        String url = "/api/student/attempts/" + attempt + "/proctoring-events";
+
+        // Returning to the page never counts toward the limit.
+        post(url, st, Map.of("eventType", "FOCUS_LOST"));
+        post(url, st, Map.of("eventType", "FOCUS_RETURNED"));
+        Res second = post(url, st, Map.of("eventType", "FULLSCREEN_EXIT"));
+        assertThat(second.body().path("autoSubmitted").asBoolean()).isFalse();
+        assertThat(jdbc.queryForObject("select status from attempts where id = ?", String.class, attempt)).isEqualTo("IN_PROGRESS");
+
+        Res third = post(url, st, Map.of("eventType", "FOCUS_LOST"));
+        assertThat(third.body().path("autoSubmitted").asBoolean()).isTrue();
+        assertThat(third.body().path("warningCount").asInt()).isEqualTo(3);
+        assertThat(jdbc.queryForObject("select status from attempts where id = ?", String.class, attempt)).isEqualTo("AUTO_SUBMITTED");
+        // saved answer (question 1, correct, 1 mark) is graded
+        assertThat(jdbc.queryForObject("select score from attempts where id = ?", Double.class, attempt)).isEqualTo(1.0);
+
+        assertThat(post(url, st, Map.of("eventType", "FOCUS_LOST")).status()).isEqualTo(409);
+        assertThat(put("/api/student/attempts/" + attempt + "/answers", st, Map.of("answers", List.of(Map.of(
+                "questionId", q1.path("id").asLong(), "optionId", q1.path("options").get(1).path("id").asLong(), "seq", 2))))
+                .status()).isEqualTo(409);
+    }
+
+    @Test
     void proctoringIsRejectedWhenDisabled() throws Exception {
         long a = setupAssignment(false);
         String st = studentLogin("21CSE001");

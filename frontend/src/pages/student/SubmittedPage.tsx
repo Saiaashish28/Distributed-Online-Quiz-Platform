@@ -1,5 +1,5 @@
 import { CheckCircle2, Clock } from 'lucide-react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { ErrorAlert, LoadingBlock } from '@/components/ui/feedback'
@@ -9,6 +9,7 @@ import type { ResultView } from '@/types/api'
 
 export default function SubmittedPage() {
   const { id } = useParams()
+  const proctoring = (useLocation().state as { reason?: string } | null)?.reason === 'proctoring'
   const { data, error, loading, reload } = useApi<ResultView>(`/api/student/attempts/${id}/result`)
   if (loading && !data) return <LoadingBlock />
   if (error || !data) return <ErrorAlert error={error ?? 'Not found'} onRetry={reload} />
@@ -22,7 +23,14 @@ export default function SubmittedPage() {
           {data.assignmentName} · {data.quizTitle}
         </p>
         <p className="mt-1 text-sm text-slate-500">Recorded at {formatDateTime(data.submittedAt)}</p>
-        {auto && <p className="mt-3 text-sm text-slate-600">Time ran out or the session ended. Every answer you saved has been graded; unanswered questions score zero.</p>}
+        {auto && (
+          <p className="mt-3 text-sm text-slate-600">
+            {proctoring
+              ? 'You left the quiz page 3 times, so your quiz was submitted automatically.'
+              : 'Time ran out, the session ended, or the page-leave limit was reached.'}{' '}
+            Every answer you saved has been graded; unanswered questions score zero.
+          </p>
+        )}
         <p className="mt-4 text-sm text-slate-600">
           {data.released ? 'Your result is available now.' : 'Your result will be available when your instructor releases it.'}
         </p>
